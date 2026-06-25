@@ -8,7 +8,7 @@ export const config = {
 const ALLOWED_ORIGINS = [
   "https://kaizokutv.me",
   "https://another-website.com",
-  "https://my-testing-site.net" // Remember: No trailing slash (/) at the end
+  "https://kaizoku.rf.gd" // Remember: No trailing slash (/) at the end
 ];
 
 const UPSTREAM_HEADERS = {
