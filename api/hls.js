@@ -2,8 +2,14 @@ export const config = {
   runtime: "edge" 
 };
 
-// Define your allowed domain
-const ALLOWED_ORIGIN = "https://kaizokutv.me";
+// ==========================================
+// CONFIGURATION: ADD YOUR ALLOWED WEBSITES HERE
+// ==========================================
+const ALLOWED_ORIGINS = [
+  "https://kaizokutv.me",
+  "https://another-website.com",
+  "https://my-testing-site.net" // Remember: No trailing slash (/) at the end
+];
 
 const UPSTREAM_HEADERS = {
   Referer: "https://executeandship.com/",
@@ -71,10 +77,9 @@ export default async function handler(request) {
   const requestOrigin = request.headers.get("origin");
   const requestReferer = request.headers.get("referer");
 
-  // SECURITY CHECK: Validate that the request comes from kaizokutv.me
-  // We check both Origin (sent by fetch/XHR) and Referer (sent by media players/tags)
-  const isAllowedOrigin = requestOrigin === ALLOWED_ORIGIN;
-  const isAllowedReferer = requestReferer && requestReferer.startsWith(ALLOWED_ORIGIN);
+  // SECURITY CHECK: Match incoming traffic against your list of allowed sites
+  const isAllowedOrigin = ALLOWED_ORIGINS.includes(requestOrigin);
+  const isAllowedReferer = ALLOWED_ORIGINS.some(domain => requestReferer && requestReferer.startsWith(domain));
 
   if (!isAllowedOrigin && !isAllowedReferer) {
     return new Response("Forbidden: Access Denied", { 
@@ -87,7 +92,7 @@ export default async function handler(request) {
   if (request.method === "OPTIONS") {
     return new Response(null, {
       status: 204,
-      headers: corsHeaders(),
+      headers: corsHeaders(requestOrigin),
     });
   }
 
@@ -100,7 +105,7 @@ export default async function handler(request) {
   }
 
   if (!target) {
-    return new Response("Missing url", { status: 400, headers: corsHeaders() });
+    return new Response("Missing url", { status: 400, headers: corsHeaders(requestOrigin) });
   }
 
   let finalTarget = target;
@@ -124,14 +129,14 @@ export default async function handler(request) {
   } catch (err) {
     return new Response(`Proxy fetch failed: ${err.message}`, {
       status: 502,
-      headers: corsHeaders(),
+      headers: corsHeaders(requestOrigin),
     });
   }
 
   if (!upstream.ok) {
     return new Response(`Upstream returned status ${upstream.status}`, {
       status: upstream.status,
-      headers: corsHeaders(),
+      headers: corsHeaders(requestOrigin),
     });
   }
 
@@ -143,7 +148,7 @@ export default async function handler(request) {
       return new Response(rewriteManifest(text, finalTarget, proxyOrigin), {
         status: 200,
         headers: {
-          ...corsHeaders(),
+          ...corsHeaders(requestOrigin),
           "Content-Type": "application/vnd.apple.mpegurl",
           "Cache-Control": "no-store",
         },
@@ -152,7 +157,7 @@ export default async function handler(request) {
   }
 
   const headers = {
-    ...corsHeaders(),
+    ...corsHeaders(requestOrigin),
     "Content-Type": upstream.headers.get("content-type") || "application/octet-stream",
     "Cache-Control": "no-store",
   };
@@ -163,10 +168,12 @@ export default async function handler(request) {
   });
 }
 
-// MODIFIED: Changed Access-Control-Allow-Origin from '*' to your specific domain
-function corsHeaders() {
+// MODIFIED: Dynamically checks and returns the correct header based on the valid incoming origin
+function corsHeaders(requestOrigin) {
+  const originToAllow = ALLOWED_ORIGINS.includes(requestOrigin) ? requestOrigin : ALLOWED_ORIGINS[0];
+
   return {
-    "Access-Control-Allow-Origin": ALLOWED_ORIGIN,
+    "Access-Control-Allow-Origin": originToAllow,
     "Access-Control-Allow-Methods": "GET, HEAD, OPTIONS",
     "Access-Control-Allow-Headers": "Range, Content-Type",
   };
