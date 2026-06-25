@@ -1,16 +1,18 @@
 export const config = { 
-  runtime: "edge" // Restricts your function execution to Mumbai (crucial for SonyLIV)
+  runtime: "edge" 
 };
 
+// Define your allowed domain
+const ALLOWED_ORIGIN = "https://kaizokutv.me";
+
 const UPSTREAM_HEADERS = {
-  Referer: "https://streamcenter.xyz/",
-  Origin: "https://streamcenter.xyz",
+  Referer: "https://executeandship.com/",
+  Origin: "https://executeandship.com",
   "User-Agent":
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36 Edg/134.0.0.0",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:151.0) Gecko/20100101 Firefox/151.0",
   Accept: "*/*",
 };
 
-// MODIFIED: Preserves existing query strings from the master file if chunks don't have them
 function resolveUrl(base, relative) {
   if (/^https?:\/\//i.test(relative)) return relative;
   
@@ -19,10 +21,8 @@ function resolveUrl(base, relative) {
     ? baseUrlObj.pathname 
     : baseUrlObj.pathname.replace(/\/[^/]*$/, "/");
   
-  // Resolve the relative path against the base origin and directory
   const resolvedUrl = new URL(relative, baseUrlObj.origin + baseDir);
   
-  // If the relative segment doesn't have its own queries, pass down the parent's queries
   if (!resolvedUrl.search && baseUrlObj.search) {
     resolvedUrl.search = baseUrlObj.search;
   }
@@ -35,7 +35,6 @@ function proxyUrl(proxyOrigin, target) {
 }
 
 function rewriteManifest(text, sourceUrl, proxyOrigin) {
-  // Modified to handle stripping queries safely for base calculation
   const urlObj = new URL(sourceUrl);
   const base = urlObj.origin + (urlObj.pathname.endsWith("/") ? urlObj.pathname : urlObj.pathname.replace(/\/[^/]*$/, "/")) + urlObj.search;
 
@@ -60,7 +59,6 @@ function rewriteManifest(text, sourceUrl, proxyOrigin) {
 }
 
 function isManifestUrl(url) {
-  // Extract path to strip query params before matching regex extension
   try {
     const path = new URL(url).pathname;
     return /\.m3u8?/i.test(path);
@@ -70,6 +68,22 @@ function isManifestUrl(url) {
 }
 
 export default async function handler(request) {
+  const requestOrigin = request.headers.get("origin");
+  const requestReferer = request.headers.get("referer");
+
+  // SECURITY CHECK: Validate that the request comes from kaizokutv.me
+  // We check both Origin (sent by fetch/XHR) and Referer (sent by media players/tags)
+  const isAllowedOrigin = requestOrigin === ALLOWED_ORIGIN;
+  const isAllowedReferer = requestReferer && requestReferer.startsWith(ALLOWED_ORIGIN);
+
+  if (!isAllowedOrigin && !isAllowedReferer) {
+    return new Response("Forbidden: Access Denied", { 
+      status: 403, 
+      headers: { "Content-Type": "text/plain" } 
+    });
+  }
+
+  // Handle CORS Preflight Options Request
   if (request.method === "OPTIONS") {
     return new Response(null, {
       status: 204,
@@ -78,12 +92,8 @@ export default async function handler(request) {
   }
 
   const reqUrl = new URL(request.url);
-  
-  // CRITICAL FIX: Capture the ENTIRE rest of the query string target
-  // searchParams.get('url') might cut off if the stream link itself has unencoded '&' signs
   let target = reqUrl.searchParams.get("url");
   
-  // Fallback: if the link was passed raw and contains multiple unencoded ampersands
   if (reqUrl.search.includes("?url=")) {
     const rawTarget = reqUrl.search.split("?url=")[1];
     if (rawTarget) target = decodeURIComponent(rawTarget);
@@ -93,17 +103,13 @@ export default async function handler(request) {
     return new Response("Missing url", { status: 400, headers: corsHeaders() });
   }
 
-  // Parse custom queries directly out of the target URL to forward them natively if needed
   let finalTarget = target;
   try {
     const targetUrlObj = new URL(target);
-    // If the link uses syntax like link|User-Agent=..., parse out the actual URL
     if (target.includes("|")) {
       finalTarget = target.split("|")[0];
     }
-  } catch (e) {
-    // Keep fallback target
-  }
+  } catch (e) {}
 
   const upstreamHeaders = { ...UPSTREAM_HEADERS };
   const range = request.headers.get("range");
@@ -157,9 +163,10 @@ export default async function handler(request) {
   });
 }
 
+// MODIFIED: Changed Access-Control-Allow-Origin from '*' to your specific domain
 function corsHeaders() {
   return {
-    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Origin": ALLOWED_ORIGIN,
     "Access-Control-Allow-Methods": "GET, HEAD, OPTIONS",
     "Access-Control-Allow-Headers": "Range, Content-Type",
   };
