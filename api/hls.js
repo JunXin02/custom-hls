@@ -174,6 +174,7 @@ function corsHeaders(requestOrigin) {
 
   return {
     "Access-Control-Allow-Origin": originToAllow,
+    //"Access-Control-Allow-Origin": "*", // <-- This tells browsers anyone can access it
     "Access-Control-Allow-Methods": "GET, HEAD, OPTIONS",
     "Access-Control-Allow-Headers": "Range, Content-Type",
   };
