@@ -3,10 +3,10 @@ export const config = {
 };
 
 const UPSTREAM_HEADERS = {
-  Referer: "https://live.tsports.com/",
-  Origin: "https://live.tsports.com",
+  Referer: "https://streamcenter.xyz/",
+  Origin: "",
   "User-Agent":
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:151.0) Gecko/20100101 Firefox/151.0",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36 Edg/134.0.0.0",
   Accept: "*/*",
 };
 
